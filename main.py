@@ -3,28 +3,30 @@ import numpy as np
 from scipy.stats import chi2
 from sympy import primerange
 
-
-def create_generator(U0, M, C, p):
-    U = U0
+# Датчик №7
+def create_generator(R0, z0, n):
+    R = R0
+    z = z0
 
     def rng():
-        nonlocal U
+        nonlocal R
+        nonlocal z
         while True:
-            U = (U * M + C) % p
-            yield U, U / p
+            z = z + 10 ** float(-n)
+            temp = R / z + np.pi
+            R = temp - int(temp)
+            yield R
 
     return rng
 
 
-def generate_unique_sequence(U0, M, C, p):
-    Us = set()
-    Rs = []
-    for U, R in create_generator(U0, M, C, p)():
-        length = len(Us)
-        Us.add(U)
-        Rs.append(R)
-        if length == len(Us):
-            return np.array(Rs)
+def generate_unique_sequence(R0, z0, n):
+    Rs = set()
+    for R in create_generator(R0, z0, n)():
+        length = len(Rs)
+        Rs.add(R)
+        if length == len(Rs) or length > 50000:
+            return np.array(list(Rs))
 
 
 def test_6(R):
@@ -70,8 +72,8 @@ def test_k_dims(R, k):
     return hi_squared_exp - hi_squared_ideal
 
 
-def generate_and_test(U0, M, C, p):
-    R = generate_unique_sequence(U0, M, C, p)
+def generate_and_test(R0, z0, n):
+    R = generate_unique_sequence(R0, z0, n)
     return len(R), R.mean(), np.median(R), R.std(), test_k_dims(R, 3), test_6(R)
 
 
@@ -106,43 +108,43 @@ def append_test_values(lengths, means, medians, stds, k_dims, test6s, test_value
     test6s.append(test6)
 
 
-def test_for_U0():
-    U0s = list(primerange(150, 5000))[::10]
-    M = 631
-    p = 22501
+def test_for_R0():
+    R0s = np.linspace(0, 0.999, 100)
+    z0 = 0.092
+    n = 7
 
     lengths, means, medians, stds, k_dims, test6s = ([] for _ in range(6))
-    for U0 in U0s:
+    for R0 in R0s:
         append_test_values(lengths, means, medians, stds, k_dims, test6s,
-                           generate_and_test(U0, M, 0, p))
+                           generate_and_test(R0, z0, n))
 
-    plot("U0", U0s, lengths, means, medians, stds, k_dims, test6s)
+    plot("R0", R0s, lengths, means, medians, stds, k_dims, test6s)
 
 
-def test_for_M():
-    U0 = 883
-    Ms = list(primerange(150, 5000))[::10]
-    p = 22501
+def test_for_z0():
+    R0 = 0.312
+    z0s = np.linspace(0, 0.999, 100)
+    n = 7
 
     lengths, means, medians, stds, k_dims, test6s = ([] for _ in range(6))
-    for M in Ms:
+    for z0 in z0s:
         append_test_values(lengths, means, medians, stds, k_dims, test6s,
-                           generate_and_test(U0, M, 0, p))
+                           generate_and_test(R0, z0, n))
 
-    plot("M", Ms, lengths, means, medians, stds, k_dims, test6s)
+    plot("z0", z0s, lengths, means, medians, stds, k_dims, test6s)
 
 
-def test_for_p():
-    U0 = 883
-    M = 631
-    ps = list(primerange(10000, 70000))[::50]
+def test_for_n():
+    R0 = 0.312
+    z0 = 0.092
+    ns = np.linspace(1, 40, 40)
 
     lengths, means, medians, stds, k_dims, test6s = ([] for _ in range(6))
-    for p in ps:
+    for n in ns:
         append_test_values(lengths, means, medians, stds, k_dims, test6s,
-                           generate_and_test(U0, M, 0, p))
+                           generate_and_test(R0, z0, n))
 
-    plot("p", ps, lengths, means, medians, stds, k_dims, test6s)
+    plot("n", ns, lengths, means, medians, stds, k_dims, test6s)
 
 
 def error(mean, median, test_k_dims, test_6):
@@ -152,36 +154,41 @@ def error(mean, median, test_k_dims, test_6):
                    + np.abs(test_6 - np.pi))
 
 
-def find_best_params(U0_range, M_range, p_range):
+def find_best_params(R0_range, z0_range, n_range):
     best_params = None
     minimal_error = float('inf')
 
-    for U0 in U0_range:
-        for M in M_range:
-            for p in p_range:
-                lengths, mean, median, std, k_dim, test6 = generate_and_test(U0, M, 0, p)
+    for R0 in R0_range:
+        print(R0)
+        for z0 in z0_range:
+            for n in n_range:
+                lengths, mean, median, std, k_dim, test6 = generate_and_test(R0, z0, n)
                 current_error = error(mean, median, k_dim, test6)
                 if current_error < minimal_error:
                     minimal_error = current_error
-                    best_params = (U0, M, p)
+                    best_params = (R0, z0, n)
 
     return best_params, minimal_error
 
 
-# test_for_U0()
-# test_for_M()
-# test_for_p()
+# test_for_R0()
+# test_for_z0()
+# test_for_n()
 
-# U0_range = list(primerange(150, 5000))[::60]
-# M_range = list(primerange(150, 5000))[::60]
-# p_range = list(primerange(30000, 60000))[::300]
+# n >= 5, иначе плохо
+# маленькие z < 0.2 в среднем лучше, но зависит от n
+# для R есть удачные значения
+
+# R0_range = np.linspace(0, 0.999, 15)
+# z0_range = np.linspace(0, 0.999, 15)
+# n_range = np.arange(5, 11, 1)
 #
-# best_params, minimal_error = find_best_params(U0_range, M_range, p_range)
+# best_params, minimal_error = find_best_params(R0_range, z0_range, n_range)
 # print(f"Best parameters: {best_params}")
 # print(f"Minimal error: {minimal_error}")
 #
-# print(generate_and_test(best_params[0], best_params[1], 0, best_params[2]))
+# print(generate_and_test(best_params[0], best_params[1], best_params[2]))
 
 
-# Best: (2267, 151, 0, 52291)
-print(generate_and_test(2267, 151, 0, 52291))
+# Best: (0.9276428571428571, 0.1427142857142857, 9)
+print(generate_and_test(0.9276428571428571, 0.1427142857142857, 9))
